@@ -46,11 +46,20 @@ async function seed() {
     console.log("✅ Bug problems seeded (9)");
 
     console.log("\n🎉 Seed complete!");
-    process.exit(0);
   } catch (err) {
-    console.error("❌ Seed failed:", err.message);
-    process.exit(1);
+    console.error("❌ Seed failed:", err);
+  } finally {
+    // Only exit the process if this file was run directly from the command line
+    if (require.main === module) {
+      process.exit();
+    }
   }
 }
 
-seed();
+// Automatically run if called directly (e.g., `node seed.js`)
+if (require.main === module) {
+  seed();
+}
+
+// Export for use in API routes
+module.exports = seed;

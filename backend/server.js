@@ -24,6 +24,17 @@ app.use("/api/bugs", bugRoutes);
 app.use("/api/submissions", submissionRoutes);
 app.use("/api/users", userRoutes);
 
+// System Routes
+app.get("/api/system/seed", async (req, res) => {
+  try {
+    const seed = require("./seed");
+    await seed();
+    res.json({ message: "✅ Database successfully seeded!" });
+  } catch (err) {
+    res.status(500).json({ error: "Seeding failed", details: err.message });
+  }
+});
+
 // Serve React build in production
 if (process.env.NODE_ENV === "production") {
   const buildPath = path.join(__dirname, "..", "frontend", "dist");

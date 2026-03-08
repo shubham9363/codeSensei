@@ -50,7 +50,10 @@ router.post("/signup", async (req, res) => {
       // Still return success — user can resend OTP
     }
 
-    res.json({ message: "OTP sent to your email", email, requiresVerification: true });
+    const responsePayload = { message: "OTP sent to your email", email, requiresVerification: true };
+    if (!process.env.SMTP_USER) responsePayload.mockOTP = otp;
+
+    res.json(responsePayload);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -113,7 +116,10 @@ router.post("/resend-otp", async (req, res) => {
       console.error("Email send failed:", emailErr.message);
     }
 
-    res.json({ message: "New OTP sent to your email" });
+    const responsePayload = { message: "New OTP sent to your email" };
+    if (!process.env.SMTP_USER) responsePayload.mockOTP = otp;
+
+    res.json(responsePayload);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -133,11 +139,14 @@ router.post("/login", async (req, res) => {
       user.otp_expires = new Date(Date.now() + 10 * 60 * 1000);
       await user.save();
       try { await sendOTP(email, otp); } catch (e) {}
-      return res.status(403).json({
+      const responsePayload = {
         message: "Email not verified. A new OTP has been sent.",
         requiresVerification: true,
         email
-      });
+      };
+      if (!process.env.SMTP_USER) responsePayload.mockOTP = otp;
+      
+      return res.status(403).json(responsePayload);
     }
 
     const valid = await bcrypt.compare(password, user.password);
