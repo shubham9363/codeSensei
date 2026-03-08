@@ -43,15 +43,19 @@ router.post("/signup", async (req, res) => {
     }
 
     // Send OTP email
+    let emailFailed = false;
     try {
       await sendOTP(email, otp);
     } catch (emailErr) {
       console.error("Email send failed:", emailErr.message);
-      // Still return success — user can resend OTP
+      emailFailed = true;
     }
 
     const responsePayload = { message: "OTP sent to your email", email, requiresVerification: true };
-    if (!process.env.SMTP_USER) responsePayload.mockOTP = otp;
+    if (!process.env.SMTP_USER || emailFailed) {
+      if (emailFailed) responsePayload.message = "Email connection timed out. Using backup OTP.";
+      responsePayload.mockOTP = otp;
+    }
 
     res.json(responsePayload);
   } catch (err) {
@@ -110,14 +114,19 @@ router.post("/resend-otp", async (req, res) => {
     user.otp_expires = new Date(Date.now() + 10 * 60 * 1000);
     await user.save();
 
+    let emailFailed = false;
     try {
       await sendOTP(email, otp);
     } catch (emailErr) {
       console.error("Email send failed:", emailErr.message);
+      emailFailed = true;
     }
 
     const responsePayload = { message: "New OTP sent to your email" };
-    if (!process.env.SMTP_USER) responsePayload.mockOTP = otp;
+    if (!process.env.SMTP_USER || emailFailed) {
+      if (emailFailed) responsePayload.message = "Email connection timed out. Using backup OTP.";
+      responsePayload.mockOTP = otp;
+    }
 
     res.json(responsePayload);
   } catch (err) {
@@ -138,13 +147,17 @@ router.post("/login", async (req, res) => {
       user.otp = otp;
       user.otp_expires = new Date(Date.now() + 10 * 60 * 1000);
       await user.save();
-      try { await sendOTP(email, otp); } catch (e) {}
+      let emailFailed = false;
+      try { await sendOTP(email, otp); } catch (e) { emailFailed = true; }
       const responsePayload = {
         message: "Email not verified. A new OTP has been sent.",
         requiresVerification: true,
         email
       };
-      if (!process.env.SMTP_USER) responsePayload.mockOTP = otp;
+      if (!process.env.SMTP_USER || emailFailed) {
+        if (emailFailed) responsePayload.message = "Email connection timed out. Using backup OTP.";
+        responsePayload.mockOTP = otp;
+      }
       
       return res.status(403).json(responsePayload);
     }

@@ -11,6 +11,9 @@ function createTransporter() {
     host: process.env.SMTP_HOST || "smtp.gmail.com",
     port: parseInt(process.env.SMTP_PORT) || 587,
     secure: false,
+    connectionTimeout: 3000, // Quick fail if port is blocked
+    greetingTimeout: 3000,
+    socketTimeout: 3000,
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS
