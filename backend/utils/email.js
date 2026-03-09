@@ -6,13 +6,19 @@ function generateOTP() {
 }
 
 function createTransporter() {
+  const host = process.env.SMTP_HOST || "smtp.gmail.com";
+  const port = parseInt(process.env.SMTP_PORT) || 465;
+  const isSecure = port === 465;
+
   return nodemailer.createTransport({
-    host: process.env.SMTP_HOST || "smtp.gmail.com",
-    port: parseInt(process.env.SMTP_PORT) || 587,
-    secure: false,
-    connectionTimeout: 3000,
-    greetingTimeout: 3000,
-    socketTimeout: 3000,
+    host,
+    port,
+    secure: isSecure,
+    // CRITICAL: Force IPv4 to bypass Render's IPv6 networking bugs (ENETUNREACH)
+    family: 4,
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 10000,
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS
@@ -21,16 +27,16 @@ function createTransporter() {
 }
 
 /**
- * Sends OTP via Resend API (HTTP) or fallback to SMTP (Nodemailer)
- * Includes a hard 4-second timeout to prevent backend hangs on Render
+ * Sends OTP via SMTP (Gmail) or Resend API if SMTP is missing.
+ * Gmail is prioritized because it allows arbitrary recipients without a domain.
  */
 async function sendOTP(email, otp) {
-  const resendKey = process.env.RESEND_API_KEY;
   const smtpUser = process.env.SMTP_USER;
   const smtpPass = process.env.SMTP_PASS;
+  const resendKey = process.env.RESEND_API_KEY;
 
-  if (!resendKey && (!smtpUser || !smtpPass)) {
-    throw new Error("Email service not configured (RESEND_API_KEY or SMTP_USER/PASS missing)");
+  if (!smtpUser && !resendKey) {
+    throw new Error("Email service not configured. Please set SMTP_USER/PASS or RESEND_API_KEY.");
   }
 
   const htmlContent = `
@@ -58,10 +64,32 @@ async function sendOTP(email, otp) {
   // Helper for hard timeout
   const timeout = (ms) => new Promise((_, reject) => setTimeout(() => reject(new Error("Email timeout")), ms));
 
-  // Try Resend API first (HTTP - works on Render)
+  // 1. Try SMTP (Gmail) First - Better for free tier (no domain needed)
+  if (smtpUser && smtpPass) {
+    console.log(`📨 Attempting SMTP (Gmail) delivery to ${email}...`);
+    const transporter = createTransporter();
+    try {
+      await Promise.race([
+        transporter.sendMail({
+          from: `"CodeSensei" <${smtpUser}>`,
+          to: email,
+          subject: "CodeSensei – Verify Your Email",
+          html: htmlContent
+        }),
+        timeout(10000)
+      ]);
+      console.log("✅ Email sent via SMTP");
+      return;
+    } catch (smtpErr) {
+      console.error("❌ SMTP Error:", smtpErr.message);
+      if (!resendKey) throw new Error(`SMTP Failed: ${smtpErr.message}`);
+      console.log("➡️ Falling back to Resend API...");
+    }
+  }
+
+  // 2. Fallback to Resend API
   if (resendKey) {
-    console.log(`📨 API Key Start: ${resendKey.substring(0, 7)}... (Total Length: ${resendKey.length})`);
-    console.log(`📨 Attempting to send via Resend API to ${email}...`);
+    console.log(`📨 Attempting Resend API delivery to ${email}...`);
     try {
       await Promise.race([
         axios.post("https://api.resend.com/emails", {
@@ -75,32 +103,11 @@ async function sendOTP(email, otp) {
         timeout(10000)
       ]);
       console.log("✅ Email sent via Resend");
-      return;
     } catch (err) {
-      if (err.response) {
-        console.error("❌ Resend API Error Status:", err.response.status);
-        console.error("❌ Resend API Error Data:", JSON.stringify(err.response.data, null, 2));
-      } else {
-        console.error("❌ Resend API Error:", err.message);
-      }
-      if (!smtpUser) throw err; // Re-throw if no SMTP fallback
+      const errorMsg = err.response?.data?.message || err.message;
+      console.error("❌ Resend API Error:", errorMsg);
+      throw new Error(`Email failed: ${errorMsg}`);
     }
-  }
-
-  // Fallback to SMTP
-  if (smtpUser && smtpPass) {
-    console.log(`📨 Attempting SMTP Fallback for ${email}...`);
-    const transporter = createTransporter();
-    await Promise.race([
-      transporter.sendMail({
-        from: `"CodeSensei" <${smtpUser}>`,
-        to: email,
-        subject: "CodeSensei – Verify Your Email",
-        html: htmlContent
-      }),
-      timeout(10000)
-    ]);
-    console.log("✅ Email sent via SMTP");
   }
 }
 
