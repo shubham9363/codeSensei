@@ -30,12 +30,7 @@ async function sendOTP(email, otp) {
   const smtpPass = process.env.SMTP_PASS;
 
   if (!resendKey && (!smtpUser || !smtpPass)) {
-    console.log(`\n======================================================`);
-    console.log(`📧 MOCKED EMAIL (No Resend Key or SMTP Config)`);
-    console.log(`To: ${email}`);
-    console.log(`🔑 OTP: ${otp}`);
-    console.log(`======================================================\n`);
-    return;
+    throw new Error("Email service not configured (RESEND_API_KEY or SMTP_USER/PASS missing)");
   }
 
   const htmlContent = `
@@ -65,39 +60,45 @@ async function sendOTP(email, otp) {
 
   // Try Resend API first (HTTP - works on Render)
   if (resendKey) {
+    console.log(`📨 API Key Start: ${resendKey.substring(0, 7)}... (Total Length: ${resendKey.length})`);
+    console.log(`📨 Attempting to send via Resend API to ${email}...`);
     try {
-      console.log("📨 Attempting to send via Resend API...");
       await Promise.race([
         axios.post("https://api.resend.com/emails", {
           from: "CodeSensei <onboarding@resend.dev>",
           to: email,
-          subject: "🥋 CodeSensei – Verify Your Email",
+          subject: "CodeSensei – Verify Your Email",
           html: htmlContent
         }, {
           headers: { "Authorization": `Bearer ${resendKey}`, "Content-Type": "application/json" }
         }),
-        timeout(4000)
+        timeout(10000)
       ]);
       console.log("✅ Email sent via Resend");
       return;
     } catch (err) {
-      console.error("❌ Resend API failed:", err.message);
+      if (err.response) {
+        console.error("❌ Resend API Error Status:", err.response.status);
+        console.error("❌ Resend API Error Data:", JSON.stringify(err.response.data, null, 2));
+      } else {
+        console.error("❌ Resend API Error:", err.message);
+      }
       if (!smtpUser) throw err; // Re-throw if no SMTP fallback
     }
   }
 
-  // Fallback to SMTP (might hang on Render Free)
+  // Fallback to SMTP
   if (smtpUser && smtpPass) {
-    console.log("📨 Attempting SMTP Fallback...");
+    console.log(`📨 Attempting SMTP Fallback for ${email}...`);
     const transporter = createTransporter();
     await Promise.race([
       transporter.sendMail({
         from: `"CodeSensei" <${smtpUser}>`,
         to: email,
-        subject: "🥋 CodeSensei – Verify Your Email",
+        subject: "CodeSensei – Verify Your Email",
         html: htmlContent
       }),
-      timeout(4000)
+      timeout(10000)
     ]);
     console.log("✅ Email sent via SMTP");
   }

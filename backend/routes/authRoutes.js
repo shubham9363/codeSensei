@@ -43,21 +43,9 @@ router.post("/signup", async (req, res) => {
     }
 
     // Send OTP email
-    let emailFailed = false;
-    try {
-      await sendOTP(email, otp);
-    } catch (emailErr) {
-      console.error("Email send failed:", emailErr.message);
-      emailFailed = true;
-    }
+    await sendOTP(email, otp);
 
-    const responsePayload = { message: "OTP sent to your email", email, requiresVerification: true };
-    if (!process.env.SMTP_USER || emailFailed) {
-      if (emailFailed) responsePayload.message = "Email connection timed out. Using backup OTP.";
-      responsePayload.mockOTP = otp;
-    }
-
-    res.json(responsePayload);
+    res.json({ message: "OTP sent to your email", email, requiresVerification: true });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -114,21 +102,8 @@ router.post("/resend-otp", async (req, res) => {
     user.otp_expires = new Date(Date.now() + 10 * 60 * 1000);
     await user.save();
 
-    let emailFailed = false;
-    try {
-      await sendOTP(email, otp);
-    } catch (emailErr) {
-      console.error("Email send failed:", emailErr.message);
-      emailFailed = true;
-    }
-
-    const responsePayload = { message: "New OTP sent to your email" };
-    if (!process.env.SMTP_USER || emailFailed) {
-      if (emailFailed) responsePayload.message = "Email connection timed out. Using backup OTP.";
-      responsePayload.mockOTP = otp;
-    }
-
-    res.json(responsePayload);
+    await sendOTP(email, otp);
+    res.json({ message: "New OTP sent to your email" });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -147,19 +122,13 @@ router.post("/login", async (req, res) => {
       user.otp = otp;
       user.otp_expires = new Date(Date.now() + 10 * 60 * 1000);
       await user.save();
-      let emailFailed = false;
-      try { await sendOTP(email, otp); } catch (e) { emailFailed = true; }
-      const responsePayload = {
+      await sendOTP(email, otp);
+      
+      return res.status(403).json({
         message: "Email not verified. A new OTP has been sent.",
         requiresVerification: true,
         email
-      };
-      if (!process.env.SMTP_USER || emailFailed) {
-        if (emailFailed) responsePayload.message = "Email connection timed out. Using backup OTP.";
-        responsePayload.mockOTP = otp;
-      }
-      
-      return res.status(403).json(responsePayload);
+      });
     }
 
     const valid = await bcrypt.compare(password, user.password);
