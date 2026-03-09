@@ -12,6 +12,14 @@ function generateOTP() {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
+// Custom lookup function that strictly filters for IPv4.
+// Necessary because Render's environment sometimes ignores global DNS defaults.
+const ipv4Lookup = (hostname, options, callback) => {
+  return dns.lookup(hostname, { family: 4 }, (err, address, family) => {
+    callback(err, address, family);
+  });
+};
+
 function createTransporter() {
   const host = process.env.SMTP_HOST || "smtp.gmail.com";
   const port = parseInt(process.env.SMTP_PORT) || 465;
@@ -23,13 +31,14 @@ function createTransporter() {
     host,
     port,
     secure: isSecure,
-    // Force IPv4 in the socket connection as well
+    // CRITICAL: Force IPv4 at both the socket and DNS level
     family: 4,
+    lookup: ipv4Lookup,
     tls: {
       rejectUnauthorized: false,
       minVersion: 'TLSv1.2'
     },
-    connectionTimeout: 20000, // Increased to 20s for slow Handshakes
+    connectionTimeout: 20000, 
     greetingTimeout: 20000,
     socketTimeout: 20000,
     auth: {
