@@ -1,6 +1,6 @@
-import axios from "axios";
-import nodemailer from "nodemailer";
-import dns from "node:dns";
+const axios = require("axios");
+const nodemailer = require("nodemailer");
+const dns = require("node:dns");
 
 // CRITICAL: Force Node.js to prefer IPv4.
 // Render containers often have broken IPv6 routing for outbound SMTP (ENETUNREACH).
