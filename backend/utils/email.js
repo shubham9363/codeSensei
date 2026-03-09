@@ -23,7 +23,8 @@ const ipv4Lookup = (hostname, options, callback) => {
 
 function createTransporter() {
   const host = process.env.SMTP_HOST || "smtp.gmail.com";
-  const port = parseInt(process.env.SMTP_PORT) || 465;
+  // Default to 587 for STARTTLS which is often more reliable on Render than 465
+  const port = parseInt(process.env.SMTP_PORT) || 587;
   const isSecure = port === 465;
 
   console.log(`📡 Configuring SMTP: ${host}:${port} (Secure: ${isSecure})`);
@@ -31,17 +32,20 @@ function createTransporter() {
   return nodemailer.createTransport({
     host,
     port,
-    secure: isSecure,
+    secure: isSecure, // false for 587
     // CRITICAL for Render: Ensure it ONLY tries IPv4
     family: 4, 
     lookup: ipv4Lookup,
     tls: {
+      // STARTTLS settings
       rejectUnauthorized: false,
-      minVersion: 'TLSv1.2'
+      minVersion: 'TLSv1.2',
+      requireTLS: port === 587
     },
-    connectionTimeout: 25000, 
-    greetingTimeout: 25000,
-    socketTimeout: 25000,
+    // Increased timeouts for cloud networking
+    connectionTimeout: 30000, 
+    greetingTimeout: 30000,
+    socketTimeout: 30000,
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS
