@@ -10,15 +10,21 @@ function createTransporter() {
   const port = parseInt(process.env.SMTP_PORT) || 465;
   const isSecure = port === 465;
 
+  console.log(`📡 Configuring SMTP: ${host}:${port} (Secure: ${isSecure})`);
+
   return nodemailer.createTransport({
     host,
     port,
     secure: isSecure,
-    // CRITICAL: Force IPv4 to bypass Render's IPv6 networking bugs (ENETUNREACH)
+    // CRITICAL for Render: Force IPv4 and relax TLS check
     family: 4,
-    connectionTimeout: 10000,
-    greetingTimeout: 10000,
-    socketTimeout: 10000,
+    tls: {
+      rejectUnauthorized: false,
+      minVersion: 'TLSv1.2'
+    },
+    connectionTimeout: 20000, // Increased to 20s for slow Handshakes
+    greetingTimeout: 20000,
+    socketTimeout: 20000,
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS
@@ -36,7 +42,7 @@ async function sendOTP(email, otp) {
   const resendKey = process.env.RESEND_API_KEY;
 
   if (!smtpUser && !resendKey) {
-    throw new Error("Email service not configured. Please set SMTP_USER/PASS or RESEND_API_KEY.");
+    throw new Error("Email service not configured. Please set SMTP_USER and SMTP_PASS in Render.");
   }
 
   const htmlContent = `
@@ -62,9 +68,9 @@ async function sendOTP(email, otp) {
   `;
 
   // Helper for hard timeout
-  const timeout = (ms) => new Promise((_, reject) => setTimeout(() => reject(new Error("Email timeout")), ms));
+  const timeout = (ms) => new Promise((_, reject) => setTimeout(() => reject(new Error(`SMTP Connection Timeout after ${ms/1000}s`)), ms));
 
-  // 1. Try SMTP (Gmail) First - Better for free tier (no domain needed)
+  // 1. Try SMTP (Gmail) First
   if (smtpUser && smtpPass) {
     console.log(`📨 Attempting SMTP (Gmail) delivery to ${email}...`);
     const transporter = createTransporter();
@@ -76,18 +82,19 @@ async function sendOTP(email, otp) {
           subject: "CodeSensei – Verify Your Email",
           html: htmlContent
         }),
-        timeout(10000)
+        timeout(25000) // 25s total timeout
       ]);
       console.log("✅ Email sent via SMTP");
       return;
     } catch (smtpErr) {
       console.error("❌ SMTP Error:", smtpErr.message);
-      if (!resendKey) throw new Error(`SMTP Failed: ${smtpErr.message}`);
-      console.log("➡️ Falling back to Resend API...");
+      // If we intended to use SMTP, throw the error so the user sees it
+      // Don't fall back to Resend if SMTP is configured - it just confuses things
+      throw new Error(`Gmail SMTP Failed: ${smtpErr.message}. Check your App Password.`);
     }
   }
 
-  // 2. Fallback to Resend API
+  // 2. Fallback to Resend API (Only if SMTP is NOT configured)
   if (resendKey) {
     console.log(`📨 Attempting Resend API delivery to ${email}...`);
     try {
@@ -106,7 +113,7 @@ async function sendOTP(email, otp) {
     } catch (err) {
       const errorMsg = err.response?.data?.message || err.message;
       console.error("❌ Resend API Error:", errorMsg);
-      throw new Error(`Email failed: ${errorMsg}`);
+      throw new Error(`Resend Error: ${errorMsg}`);
     }
   }
 }
