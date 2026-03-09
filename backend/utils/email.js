@@ -1,5 +1,12 @@
-const nodemailer = require("nodemailer");
-const axios = require("axios");
+import axios from "axios";
+import nodemailer from "nodemailer";
+import dns from "node:dns";
+
+// CRITICAL: Force Node.js to prefer IPv4.
+// Render containers often have broken IPv6 routing for outbound SMTP (ENETUNREACH).
+if (dns.setDefaultResultOrder) {
+  dns.setDefaultResultOrder('ipv4first');
+}
 
 function generateOTP() {
   return Math.floor(100000 + Math.random() * 900000).toString();
@@ -16,7 +23,7 @@ function createTransporter() {
     host,
     port,
     secure: isSecure,
-    // CRITICAL for Render: Force IPv4 and relax TLS check
+    // Force IPv4 in the socket connection as well
     family: 4,
     tls: {
       rejectUnauthorized: false,
