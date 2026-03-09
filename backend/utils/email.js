@@ -8,15 +8,12 @@ if (dns.setDefaultResultOrder) {
   dns.setDefaultResultOrder('ipv4first');
 }
 
-function generateOTP() {
-  return Math.floor(100000 + Math.random() * 900000).toString();
-}
-
 // Custom lookup function that strictly filters for IPv4.
-// Necessary because Render's environment sometimes ignores global DNS defaults.
 const ipv4Lookup = (hostname, options, callback) => {
   return dns.lookup(hostname, { family: 4 }, (err, address, family) => {
-    callback(err, address, family);
+    if (err) return callback(err);
+    console.log(`🔍 DNS Lookup: ${hostname} -> ${address} (IPv4)`);
+    callback(null, address, 4);
   });
 };
 
@@ -31,16 +28,16 @@ function createTransporter() {
     host,
     port,
     secure: isSecure,
-    // CRITICAL: Force IPv4 at both the socket and DNS level
-    family: 4,
+    // CRITICAL for Render: Ensure it ONLY tries IPv4
+    family: 4, 
     lookup: ipv4Lookup,
     tls: {
       rejectUnauthorized: false,
       minVersion: 'TLSv1.2'
     },
-    connectionTimeout: 20000, 
-    greetingTimeout: 20000,
-    socketTimeout: 20000,
+    connectionTimeout: 25000, 
+    greetingTimeout: 25000,
+    socketTimeout: 25000,
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS

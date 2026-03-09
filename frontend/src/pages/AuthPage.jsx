@@ -14,6 +14,7 @@ export default function AuthPage() {
   const [otpEmail, setOtpEmail] = useState('');
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [otpLoading, setOtpLoading] = useState(false);
+  const [authLoading, setAuthLoading] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
   const otpRefs = useRef([]);
 
@@ -25,10 +26,11 @@ export default function AuthPage() {
   }, [resendCooldown]);
 
   const handleLogin = async () => {
-    setError(''); setSuccess('');
+    setError(''); setSuccess(''); setAuthLoading(true);
     try {
       await login(form.email, form.password);
     } catch (e) {
+      setAuthLoading(false);
       const data = e.response?.data;
       if (data?.requiresVerification) {
         setOtpEmail(data.email || form.email);
@@ -45,6 +47,7 @@ export default function AuthPage() {
     setError(''); setSuccess('');
     if (!form.name || !form.email || !form.password) return setError('Please fill all fields.');
     if (form.password.length < 6) return setError('Password must be at least 6 characters.');
+    setAuthLoading(true);
     try {
       const res = await apiSignup({ name: form.name, email: form.email, password: form.password, role: form.role });
       if (res.data.requiresVerification) {
@@ -53,7 +56,9 @@ export default function AuthPage() {
         setSuccess('Check your email for the 6-digit OTP!');
         setResendCooldown(30);
       }
+      setAuthLoading(false);
     } catch (e) {
+      setAuthLoading(false);
       setError(e.response?.data?.message || 'Signup failed');
     }
   };
@@ -205,7 +210,13 @@ export default function AuthPage() {
               <input className="form-input" type="password" placeholder="••••••••" value={form.password}
                 onChange={e => setForm({ ...form, password: e.target.value })} onKeyDown={e => e.key === 'Enter' && handleLogin()} />
             </div>
-            <button className="auth-btn" onClick={handleLogin}>Sign In →</button>
+            <button className="auth-btn" onClick={handleLogin} disabled={authLoading}>
+              {authLoading ? (
+                <span className="loading-container">
+                  <span className="loader-dots"></span> Processing...
+                </span>
+              ) : 'Sign In →'}
+            </button>
           </div>
         ) : (
           <div>
@@ -234,7 +245,13 @@ export default function AuthPage() {
                 ))}
               </div>
             </div>
-            <button className="auth-btn" onClick={handleSignup}>Create Account →</button>
+            <button className="auth-btn" onClick={handleSignup} disabled={authLoading}>
+              {authLoading ? (
+                <span className="loading-container">
+                  <span className="loader-dots"></span> Creating Account...
+                </span>
+              ) : 'Create Account →'}
+            </button>
           </div>
         )}
 
