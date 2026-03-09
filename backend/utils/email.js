@@ -8,6 +8,10 @@ if (dns.setDefaultResultOrder) {
   dns.setDefaultResultOrder('ipv4first');
 }
 
+function generateOTP() {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
 // Custom lookup function that strictly filters for IPv4.
 const ipv4Lookup = (hostname, options, callback) => {
   return dns.lookup(hostname, { family: 4 }, (err, address, family) => {
