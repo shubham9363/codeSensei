@@ -4,7 +4,7 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const { auth } = require("../middleware/auth");
-const { generateOTP, sendOTP } = require("../utils/email");
+const { generateOTP, sendOTP, sendResetOTP } = require("../utils/email");
 
 // POST /api/auth/signup — creates unverified user, sends OTP email
 router.post("/signup", async (req, res) => {
@@ -157,6 +157,64 @@ router.get("/me", auth, async (req, res) => {
     });
     if (!user) return res.status(404).json({ message: "User not found" });
     res.json(user);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// POST /api/auth/forgot-password
+router.post("/forgot-password", async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ message: "Email is required" });
+
+    const user = await User.findOne({ where: { email } });
+    if (!user) {
+      // Don't leak that the user doesn't exist for security
+      return res.json({ message: "If an account with that email exists, we sent a password reset link." });
+    }
+
+    const otp = generateOTP();
+    user.otp = otp;
+    user.otp_expires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    await user.save();
+
+    await sendResetOTP(email, otp);
+    res.json({ message: "Password reset code sent to your email." });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// POST /api/auth/reset-password
+router.post("/reset-password", async (req, res) => {
+  try {
+    const { email, otp, newPassword } = req.body;
+    if (!email || !otp || !newPassword) {
+      return res.status(400).json({ message: "Email, OTP, and new password are required." });
+    }
+    if (newPassword.length < 6) {
+      return res.status(400).json({ message: "Password must be at least 6 characters." });
+    }
+
+    const user = await User.findOne({ where: { email } });
+    if (!user) return res.status(404).json({ message: "User not found." });
+
+    if (user.otp !== otp) {
+      return res.status(400).json({ message: "Invalid reset code." });
+    }
+    if (user.otp_expires && new Date() > new Date(user.otp_expires)) {
+      return res.status(400).json({ message: "Reset code has expired. Please request a new one." });
+    }
+
+    // Update password
+    const hashed = await bcrypt.hash(newPassword, 10);
+    user.password = hashed;
+    user.otp = null;
+    user.otp_expires = null;
+    await user.save();
+
+    res.json({ message: "Password has been successfully reset. You can now log in." });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

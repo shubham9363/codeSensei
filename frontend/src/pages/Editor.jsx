@@ -3,6 +3,18 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
 import { getProblems, createSubmission, updateProgress, getHint } from '../api';
+import CodeEditor from '@uiw/react-textarea-code-editor';
+
+const STARTER_TEMPLATES = {
+  python: 'def solution():\n    pass',
+  javascript: 'function solution() {\n    \n}',
+  java: 'class Main {\n    public static void main(String[] args) {\n        \n    }\n}',
+  cpp: '#include <iostream>\nusing namespace std;\n\nint main() {\n    return 0;\n}',
+  c: '#include <stdio.h>\n\nint main() {\n    return 0;\n}',
+  rust: 'fn main() {\n    \n}',
+  go: 'package main\n\nimport "fmt"\n\nfunc main() {\n    \n}',
+  ruby: 'def solution\n    \nend'
+};
 
 export default function Editor() {
   const { id } = useParams();
@@ -27,9 +39,23 @@ export default function Editor() {
     getProblems().then(r => {
       setProblems(r.data);
       const p = id ? r.data.find(x => x.id === parseInt(id)) : r.data[0];
-      if (p) { setCurrent(p); setCode(p.starter_code || ''); }
+      if (p) { 
+        setCurrent(p); 
+        setCode(p.starter_code || STARTER_TEMPLATES[language] || ''); 
+      }
     });
   }, [id]);
+
+  const handleLanguageChange = (e) => {
+    const newLang = e.target.value;
+    setLanguage(newLang);
+    
+    // Update starter code if current code is empty or matches an existing template
+    const isCurrentTemplate = Object.values(STARTER_TEMPLATES).includes(code.trim()) || code.trim() === '' || (current && code.trim() === current.starter_code?.trim());
+    if (isCurrentTemplate) {
+      setCode(STARTER_TEMPLATES[newLang] || '');
+    }
+  };
 
   const evaluateCode = (code, p) => {
     const hasReturn = code.includes('return');
@@ -154,7 +180,7 @@ export default function Editor() {
       </div>
       <div className="editor-panel">
         <div className="editor-toolbar">
-          <select className="lang-select" value={language} onChange={e => setLanguage(e.target.value)}>
+          <select className="lang-select" value={language} onChange={handleLanguageChange}>
             <option value="python">Python</option>
             <option value="javascript">JavaScript</option>
             <option value="java">Java</option>
@@ -169,8 +195,20 @@ export default function Editor() {
           <button className="btn btn-success" onClick={submitCode}>✓ Submit</button>
           <button className="btn btn-accent" onClick={askSensei} disabled={isLoadingHint}>🤖 Ask Sensei</button>
         </div>
-        <div className="code-area">
-          <textarea className="code-editor" value={code} onChange={e => setCode(e.target.value)} spellCheck={false}></textarea>
+        <div className="code-area" style={{ backgroundColor: '#1e1e1e', overflow: 'auto', borderRadius: '8px', border: '1px solid var(--border)' }}>
+          <CodeEditor
+            value={code}
+            language={language}
+            placeholder="Please enter your code here..."
+            onChange={(evn) => setCode(evn.target.value)}
+            padding={15}
+            style={{
+              fontSize: 14,
+              backgroundColor: "transparent",
+              fontFamily: 'ui-monospace,SFMono-Regular,SF Mono,Consolas,Liberation Mono,Menlo,monospace',
+              minHeight: '400px'
+            }}
+          />
         </div>
         <div className="output-panel">
           <div className="output-label">Output</div>

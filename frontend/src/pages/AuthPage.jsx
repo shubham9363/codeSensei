@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { signup as apiSignup, verifyOtp, resendOtp } from '../api';
+import { signup as apiSignup, verifyOtp, resendOtp, forgotPassword, resetPassword } from '../api';
 
 export default function AuthPage() {
   const { login } = useAuth();
@@ -116,6 +116,41 @@ export default function AuthPage() {
     }
   };
 
+  const handleForgot = async () => {
+    setError(''); setSuccess('');
+    if (!form.email) return setError('Please enter your email.');
+    setAuthLoading(true);
+    try {
+      const res = await forgotPassword({ email: form.email });
+      setSuccess(res.data.message);
+      setOtpEmail(form.email);
+      setTab('reset'); // move to reset tab
+      setAuthLoading(false);
+    } catch (e) {
+      setAuthLoading(false);
+      setError(e.response?.data?.message || 'Failed to send reset email');
+    }
+  };
+
+  const handleReset = async () => {
+    setError(''); setSuccess('');
+    const code = otp.join('');
+    if (code.length < 6) return setError('Please enter the 6-digit code.');
+    if (form.password.length < 6) return setError('Password must be at least 6 characters.');
+    setAuthLoading(true);
+    try {
+      const res = await resetPassword({ email: otpEmail, otp: code, newPassword: form.password });
+      setSuccess(res.data.message);
+      setTab('login');
+      setOtp(['', '', '', '', '', '']);
+      setForm({ ...form, password: '' });
+      setAuthLoading(false);
+    } catch (e) {
+      setAuthLoading(false);
+      setError(e.response?.data?.message || 'Password reset failed');
+    }
+  };
+
   const demoLogin = async (role) => {
     const emails = { student: 'student@codesensei.com', mentor: 'mentor@codesensei.com', admin: 'admin@codesensei.com' };
     const pass = role === 'admin' ? 'admin123' : role === 'mentor' ? 'mentor123' : 'student123';
@@ -191,10 +226,15 @@ export default function AuthPage() {
       <div className="auth-box">
         <div className="auth-logo">Code<span>Sensei</span></div>
         <div className="auth-tagline">Debug. Trace. Level up your coding skills.</div>
-        <div className="auth-tabs">
-          <button className={`auth-tab ${tab === 'login' ? 'active' : ''}`} onClick={() => { setTab('login'); setError(''); setSuccess(''); }}>Sign In</button>
-          <button className={`auth-tab ${tab === 'signup' ? 'active' : ''}`} onClick={() => { setTab('signup'); setError(''); setSuccess(''); }}>Sign Up</button>
-        </div>
+        
+        {/* Only show tabs if we are on login or signup */}
+        {(tab === 'login' || tab === 'signup') && (
+          <div className="auth-tabs">
+            <button className={`auth-tab ${tab === 'login' ? 'active' : ''}`} onClick={() => { setTab('login'); setError(''); setSuccess(''); }}>Sign In</button>
+            <button className={`auth-tab ${tab === 'signup' ? 'active' : ''}`} onClick={() => { setTab('signup'); setError(''); setSuccess(''); }}>Sign Up</button>
+          </div>
+        )}
+
         {error && <div className="auth-error">{error}</div>}
         {success && <div style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '8px', padding: '10px 14px', fontSize: '13px', color: 'var(--green)', marginBottom: '12px' }}>{success}</div>}
 
@@ -210,6 +250,9 @@ export default function AuthPage() {
               <input className="form-input" type="password" placeholder="••••••••" value={form.password}
                 onChange={e => setForm({ ...form, password: e.target.value })} onKeyDown={e => e.key === 'Enter' && handleLogin()} />
             </div>
+            <div style={{ textAlign: 'right', marginTop: '-8px', marginBottom: '16px' }}>
+              <span style={{ fontSize: '12px', color: 'var(--accent)', cursor: 'pointer', fontWeight: '500' }} onClick={() => { setTab('forgot'); setError(''); setSuccess(''); }}>Forgot Password?</span>
+            </div>
             <button className="auth-btn" onClick={handleLogin} disabled={authLoading}>
               {authLoading ? (
                 <span className="loading-container">
@@ -218,7 +261,7 @@ export default function AuthPage() {
               ) : 'Sign In →'}
             </button>
           </div>
-        ) : (
+        ) : tab === 'signup' ? (
           <div>
             <div className="form-group">
               <label>Full Name</label>
@@ -252,6 +295,50 @@ export default function AuthPage() {
                 </span>
               ) : 'Create Account →'}
             </button>
+          </div>
+        ) : tab === 'forgot' ? (
+          <div>
+            <h3 style={{color: 'white', marginBottom: '8px', fontSize: '18px'}}>Reset Password</h3>
+            <p style={{color: 'var(--muted)', fontSize: '13px', marginBottom: '20px'}}>Enter your email and we'll send you a code to reset your password.</p>
+            <div className="form-group">
+              <label>Email</label>
+              <input className="form-input" type="email" placeholder="you@example.com" value={form.email}
+                onChange={e => setForm({ ...form, email: e.target.value })} onKeyDown={e => e.key === 'Enter' && handleForgot()} />
+            </div>
+            <button className="auth-btn" onClick={handleForgot} disabled={authLoading}>
+              {authLoading ? 'Sending...' : 'Send Reset Code'}
+            </button>
+            <div style={{ textAlign: 'center', marginTop: '16px' }}>
+              <span style={{ fontSize: '12px', color: 'var(--muted)', cursor: 'pointer' }} onClick={() => {setTab('login'); setError(''); setSuccess('');}}>← Back to login</span>
+            </div>
+          </div>
+        ) : (
+          <div>
+            <h3 style={{color: 'white', marginBottom: '8px', fontSize: '18px'}}>Enter Reset Code</h3>
+            <p style={{color: 'var(--muted)', fontSize: '13px', marginBottom: '16px'}}>We sent a code to <strong style={{color:'var(--accent2)'}}>{otpEmail}</strong>.</p>
+            
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', margin: '16px 0' }} onPaste={handleOtpPaste}>
+              {otp.map((digit, i) => (
+                <input key={i} ref={el => otpRefs.current[i] = el}
+                  type="text" inputMode="numeric" maxLength={1}
+                  value={digit} onChange={e => handleOtpChange(i, e.target.value)}
+                  onKeyDown={e => handleOtpKeyDown(i, e)}
+                  style={{ width: '40px', height: '48px', textAlign: 'center', fontSize: '20px', fontWeight: 800, background: 'var(--surface2)', border: digit ? '2px solid var(--accent)' : '1px solid var(--border)', borderRadius: '8px', color: 'var(--text)', outline: 'none' }}
+                />
+              ))}
+            </div>
+
+            <div className="form-group">
+              <label>New Password</label>
+              <input className="form-input" type="password" placeholder="••••••••" value={form.password}
+                onChange={e => setForm({ ...form, password: e.target.value })} onKeyDown={e => e.key === 'Enter' && handleReset()} />
+            </div>
+            <button className="auth-btn" onClick={handleReset} disabled={authLoading}>
+              {authLoading ? 'Resetting...' : 'Save New Password'}
+            </button>
+            <div style={{ textAlign: 'center', marginTop: '16px' }}>
+              <span style={{ fontSize: '12px', color: 'var(--muted)', cursor: 'pointer' }} onClick={() => {setTab('login'); setError(''); setSuccess(''); setOtp(['','','','','','']);}}>← Back to login</span>
+            </div>
           </div>
         )}
 
