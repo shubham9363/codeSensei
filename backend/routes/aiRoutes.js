@@ -35,14 +35,14 @@ router.post("/hint", auth, async (req, res) => {
       Keep your response to a maximum of 3 short sentences. Guide them conceptually.
     `;
 
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
     const result = await model.generateContent(prompt);
     const response = await result.response;
 
     res.json({ hint: response.text() });
   } catch (err) {
     console.error("AI Hint Error:", err);
-    res.status(500).json({ message: "Failed to generate hint.", details: err.message });
+    res.status(500).json({ message: "Failed to generate hint: " + err.message });
   }
 });
 
