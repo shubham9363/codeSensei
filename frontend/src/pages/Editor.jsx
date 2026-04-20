@@ -31,9 +31,7 @@ export default function Editor() {
   const [showLogic, setShowLogic] = useState(false);
   const [language, setLanguage] = useState('python');
   
-  // AI Hint State
-  const [hint, setHint] = useState('');
-  const [isLoadingHint, setIsLoadingHint] = useState(false);
+  // AI feature currently disabled
 
   useEffect(() => {
     getProblems().then(r => {
@@ -124,29 +122,7 @@ export default function Editor() {
     }, 800);
   };
 
-  const askSensei = async () => {
-    if (!current || !code.trim()) {
-      showToast?.('⚠️', 'Missing Code', 'Please write some code before asking for a hint!');
-      return;
-    }
-    setIsLoadingHint(true);
-    setHint('Sensei is analyzing your code...');
-    
-    try {
-      const response = await getHint({
-        problemId: current.id,
-        code,
-        problemTitle: current.title,
-        problemDescription: current.description
-      });
-      setHint(response.data.hint);
-    } catch (e) {
-      console.error(e);
-      setHint(e.response?.data?.message || 'Sensei is currently meditating and unavailable. (Check API key)');
-    } finally {
-      setIsLoadingHint(false);
-    }
-  };
+
 
   if (!current) return <div className="dashboard page-enter"><p style={{ color: 'var(--muted)', padding: '40px', textAlign: 'center' }}>Loading problems...</p></div>;
 
@@ -193,7 +169,6 @@ export default function Editor() {
           <button className="btn btn-trace" onClick={() => navigate('/tracer')}>👁️ Trace</button>
           <button className="btn btn-ghost" onClick={runCode}>▶ Run</button>
           <button className="btn btn-success" onClick={submitCode}>✓ Submit</button>
-          <button className="btn btn-accent" onClick={askSensei} disabled={isLoadingHint}>🤖 Ask Sensei</button>
         </div>
         <div className="code-area" style={{ backgroundColor: '#1e1e1e', overflow: 'auto', borderRadius: '8px', border: '1px solid var(--border)' }}>
           <CodeEditor
@@ -225,14 +200,7 @@ export default function Editor() {
             ))}
           </div>
         )}
-        {hint && (
-          <div className="logic-panel" style={{ marginTop: '16px', background: 'rgba(92, 106, 222, 0.1)', border: '1px solid var(--accent)' }}>
-            <div className="logic-panel-title" style={{ color: 'var(--accent)' }}>🤖 Sensei's Hint</div>
-            <div className="output-text" style={{ whiteSpace: 'pre-wrap', fontStyle: 'italic', marginTop: '8px' }}>
-              {hint}
-            </div>
-          </div>
-        )}
+
       </div>
     </div>
   );
