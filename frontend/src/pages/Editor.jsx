@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
-import { getProblems, createSubmission, updateProgress } from '../api';
+import { getProblems, createSubmission, updateProgress, getHint } from '../api';
 
 export default function Editor() {
   const { id } = useParams();
@@ -18,6 +18,10 @@ export default function Editor() {
   const [logicChecks, setLogicChecks] = useState([]);
   const [showLogic, setShowLogic] = useState(false);
   const [language, setLanguage] = useState('python');
+  
+  // AI Hint State
+  const [hint, setHint] = useState('');
+  const [isLoadingHint, setIsLoadingHint] = useState(false);
 
   useEffect(() => {
     getProblems().then(r => {
@@ -94,6 +98,30 @@ export default function Editor() {
     }, 800);
   };
 
+  const askSensei = async () => {
+    if (!current || !code.trim()) {
+      showToast?.('⚠️', 'Missing Code', 'Please write some code before asking for a hint!');
+      return;
+    }
+    setIsLoadingHint(true);
+    setHint('Sensei is analyzing your code...');
+    
+    try {
+      const response = await getHint({
+        problemId: current.id,
+        code,
+        problemTitle: current.title,
+        problemDescription: current.description
+      });
+      setHint(response.data.hint);
+    } catch (e) {
+      console.error(e);
+      setHint(e.response?.data?.message || 'Sensei is currently meditating and unavailable. (Check API key)');
+    } finally {
+      setIsLoadingHint(false);
+    }
+  };
+
   if (!current) return <div className="dashboard page-enter"><p style={{ color: 'var(--muted)', padding: '40px', textAlign: 'center' }}>Loading problems...</p></div>;
 
   return (
@@ -139,6 +167,7 @@ export default function Editor() {
           <button className="btn btn-trace" onClick={() => navigate('/tracer')}>👁️ Trace</button>
           <button className="btn btn-ghost" onClick={runCode}>▶ Run</button>
           <button className="btn btn-success" onClick={submitCode}>✓ Submit</button>
+          <button className="btn btn-accent" onClick={askSensei} disabled={isLoadingHint}>🤖 Ask Sensei</button>
         </div>
         <div className="code-area">
           <textarea className="code-editor" value={code} onChange={e => setCode(e.target.value)} spellCheck={false}></textarea>
@@ -156,6 +185,14 @@ export default function Editor() {
                 <span className="logic-text"><strong>{c.label}</strong>{c.info ? ' — ' + c.info : ''}</span>
               </div>
             ))}
+          </div>
+        )}
+        {hint && (
+          <div className="logic-panel" style={{ marginTop: '16px', background: 'rgba(92, 106, 222, 0.1)', border: '1px solid var(--accent)' }}>
+            <div className="logic-panel-title" style={{ color: 'var(--accent)' }}>🤖 Sensei's Hint</div>
+            <div className="output-text" style={{ whiteSpace: 'pre-wrap', fontStyle: 'italic', marginTop: '8px' }}>
+              {hint}
+            </div>
           </div>
         )}
       </div>

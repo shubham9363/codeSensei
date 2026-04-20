@@ -10,6 +10,7 @@ const problemRoutes = require("./routes/problemRoutes");
 const bugRoutes = require("./routes/bugRoutes");
 const submissionRoutes = require("./routes/submissionRoutes");
 const userRoutes = require("./routes/userRoutes");
+const aiRoutes = require("./routes/aiRoutes");
 
 const app = express();
 
@@ -23,6 +24,7 @@ app.use("/api/problems", problemRoutes);
 app.use("/api/bugs", bugRoutes);
 app.use("/api/submissions", submissionRoutes);
 app.use("/api/users", userRoutes);
+app.use("/api/ai", aiRoutes);
 
 // System Routes
 app.get("/api/system/seed", async (req, res) => {

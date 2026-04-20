@@ -39,6 +39,9 @@ export const getSubmissions = () => api.get('/submissions');
 export const getMySubmissions = () => api.get('/submissions/my');
 export const addFeedback = (id, feedback) => api.put(`/submissions/${id}/feedback`, { feedback });
 
+// AI Hints
+export const getHint = (data) => api.post('/ai/hint', data);
+
 // Users
 export const getLeaderboard = () => api.get('/users/leaderboard');
 export const getUsers = () => api.get('/users');
